@@ -3,29 +3,29 @@
 # ==================
 
 - hosts: all
-  accelerate: "{{ accelerate }}"
   user: ansibler
-  tasks: []
+  tasks:
+    - name: determine interface
+      set_fact: ipv4_address="{{ hostvars[inventory_hostname].ansible_all_ipv4_addresses[ansible_all_ipv4_addresses_index] }}"
+      # eg. to use a eth1: ipv4_address="{{ hostvars[inventory_hostname].ansible_eth1.ipv4.address }}"
 
 - hosts: all
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
+    - { role: kernel, when: upgrade_kernel and not ansible_kernel.startswith('3.13') }
     - common
     - { role: postfix_mandrill, when: notify_email is defined and postfix_domain is defined and mandrill_username is defined and mandrill_api_key is defined }
     - ganglia_monitor
-    - {role: oracle_jdk, when: jdk_installed is not defined }
+    - { role: oracle_jdk, when: jdk_installed is not defined }
 
 - hosts: 2_links_aggregated
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - { role: 2_aggregated_links, when: bond_mode is defined and mtu is defined and ansible_virtualization_role == "host" and ansible_interfaces|length == 3 and "bond0" not in ansible_interfaces }
 
 - hosts: elasticsearch
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
@@ -33,7 +33,6 @@
     - elasticsearch_curator
 
 - hosts: monitors[0]
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
@@ -43,17 +42,17 @@
     - smokeping
 
 - hosts: all
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
-    - td_agent
+    #needs libc6 2.14 :(
+    - { role: td_agent, when: ansible_distribution_release != "wheezy" }
     - rsyslog_fluentd
+
 
 # Hadoop
 
 - hosts: zookeepers:journalnodes:resourcemanager:nodemanagers:historyserver:hbase_masters:regionservers
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
@@ -61,21 +60,18 @@
     - cdh_hadoop_config
 
 - hosts: zookeepers
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - cdh_zookeeper_server
 
 - hosts: journalnodes
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - cdh_hadoop_journalnode
 
 - hosts: namenodes[0]
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   sudo_user: hdfs
@@ -85,15 +81,15 @@
       tags:
         - hadoop
         - hbase
+        - hive
     - name: format the namenode - WILL NOT FORMAT IF /data/dfs/nn/current/VERSION EXISTS TO AVOID DATA LOSS
-      shell: creates=/data/dfs/nn/current/VERSION hdfs namenode -format -force
+      command: creates=/data/dfs/nn/current/VERSION hdfs namenode -format -force
       tags:
         - hadoop
         - hbase
         - hive
 
 - hosts: namenodes[0]
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
@@ -101,21 +97,22 @@
     - cdh_hadoop_zkfc
 
 - hosts: namenodes[1]
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   sudo_user: hdfs
   tasks:
     - name: wait for the first namenode to come online
-      wait_for: host={{ hostvars[groups['namenodes'][0]]['ansible_default_ipv4']['address'] }} port=50070
+      wait_for: host={{ hostvars[groups['namenodes'][0]].ipv4_address|default(hostvars[groups['namenodes'][0]].ansible_default_ipv4.address) }} port=50070
       tags:
         - hadoop
         - hbase
+        - hive
     - name: create the /data/dfs/nn directory
       file: path=/data/dfs/nn owner=hdfs group=hdfs state=directory
       tags:
         - hadoop
         - hbase
+        - hive
     - name: bootstrap the standby namenode
       shell: creates=/data/dfs/nn/.bootstrapped hdfs namenode -bootstrapStandby && touch /data/dfs/nn/.bootstrapped
       tags:
@@ -124,7 +121,6 @@
         - hive
 
 - hosts: namenodes[1]
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
@@ -132,7 +128,6 @@
     - cdh_hadoop_zkfc
 
 - hosts: namenodes[0]
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   tasks:
@@ -156,28 +151,24 @@
         - hive
 
 - hosts: datanodes
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - cdh_hadoop_datanode
 
 - hosts: nodemanagers
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - cdh_hadoop_mapreduce
 
 - hosts: hbase_masters:regionservers
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - cdh_hbase_config
 
 - hosts: namenodes[0]
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   sudo_user: hdfs
@@ -186,47 +177,51 @@
       shell: creates=/data/dfs/.tmpdircreated hadoop fs -mkdir /tmp && touch /data/dfs/.tmpdircreated
       tags:
         - hadoop
+        - hadoop_fs
     - name: make sure the /tmp directory has the correct permissions
       shell: creates=/data/dfs/.tmpdirchowned sleep 5 && hadoop fs -chmod -R 1777 /tmp && touch /data/dfs/.tmpdirchowned
       tags:
         - hadoop
+        - hadoop_fs
     - name: create a /user/history directory on the cluster
       shell: creates=/data/dfs/.historydircreated hadoop fs -mkdir /user/history && touch /data/dfs/.historydircreated
       tags:
         - hadoop
+        - hadoop_fs
     - name: make sure the /user/history directory has the correct permissions
       shell: creates=/data/dfs/.historydirchmodded sleep 5 && hadoop fs -chmod -R 1777 /user/history && touch /data/dfs/.historydirchmodded
       tags:
         - hadoop
+        - hadoop_fs
     - name: make sure the /user/history directory has the correct owner
-      shell: creates=/data/dfs/.historydirchowned sleep 5 && hadoop fs -chown yarn /user/history && touch /data/dfs/.historydirchowned
+      shell: creates=/data/dfs/.historydirchowned sleep 5 && hadoop fs -chown yarn:mapred /user/history && touch /data/dfs/.historydirchowned
       tags:
         - hadoop
+        - hadoop_fs
     - name: create the /hbase directory on the cluster
       shell: creates=/data/dfs/.hbasedircreated hadoop fs -mkdir /hbase && touch /data/dfs/.hbasedircreated
       tags:
         - hbase
+        - hadoop_fs
     - name: make sure the /hbase directory has the correct owner
       shell: creates=/data/dfs/.hbasedirchowned sleep 5 && hadoop fs -chown hbase:hbase /hbase && touch /data/dfs/.hbasedirchowned
       tags:
         - hbase
+        - hadoop_fs
 
 - hosts: resourcemanager
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - cdh_hadoop_yarn_resourcemanager
 
 - hosts: nodemanagers
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - cdh_hadoop_yarn_nodemanager
 
 - hosts: historyserver
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
@@ -234,59 +229,34 @@
     - cdh_hadoop_yarn_proxyserver
 
 - hosts: hbase_masters
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - cdh_hbase_master
 
 - hosts: regionservers
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - cdh_hbase_regionserver
 
 - hosts: hive_metastore
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
-    - postgresql_server
+    - { role: postgresql_server, when: hive_metastore == "postgresql" }
+    - { role: cdh_hive_postgresql_metastore, when: hive_metastore == "postgresql" }
+    - { role: mysql_server, when: hive_metastore == "mysql" }
+    - { role: cdh_hive_mysql_metastore, when: hive_metastore == "mysql" }
     - cdh_hive_config
 
 - hosts: hive_metastore
-  accelerate: "{{ accelerate }}"
-  user: ansibler
-  sudo: true
-  sudo_user: postgres
-  tasks:
-    - postgresql_db: name=metastore
-      tags:
-        - postgres
-        - hive
-    - postgresql_user: db=metastore name=hiveuser password=hive_{{ site_name }} priv=CONNECT
-      tags:
-        - postgres
-        - hive
-    - shell: psql --dbname=metastore --file=/usr/lib/hive/scripts/metastore/upgrade/postgres/hive-schema-0.10.0.postgres.sql
-      tags:
-        - postgres
-        - hive
-    - shell: psql --dbname=metastore --command="GRANT ALL ON ALL TABLES IN SCHEMA public TO hiveuser;"
-      tags:
-        - postgres
-        - hive
-
-- hosts: hive_metastore
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - cdh_hive_metastore
 
 - hosts: namenodes[0]
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   sudo_user: hdfs
@@ -295,20 +265,20 @@
       shell: creates=/data/dfs/.hivewarehousedircreated hadoop fs -mkdir /user/hive/warehouse && touch /data/dfs/.hivewarehousedircreated
       tags:
         - hive
+        - hadoop_fs
     - name: make sure the /user/hive/warehouse directory has the correct permissions
       shell: creates=/data/dfs/.hivewarehousedirchmodded sleep 5 && hadoop fs -chmod -R 1777 /user/hive/warehouse && touch /data/dfs/.hivewarehousedirchmodded
       tags:
         - hive
+        - hadoop_fs
 
 - hosts: presto_coordinators
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:
     - presto_coordinator
 
 - hosts: presto_workers
-  accelerate: "{{ accelerate }}"
   user: ansibler
   sudo: true
   roles:

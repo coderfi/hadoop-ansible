@@ -7,7 +7,8 @@ fi
 
 if [ ! -f "hosts" ]; then
     echo "Please create a hosts inventory file (see hosts.sample)."
-    exit
+exit
+
 fi
 
 export ANSIBLE_HOST_KEY_CHECKING=False

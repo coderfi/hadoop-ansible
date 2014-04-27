@@ -1,6 +1,11 @@
 ---
 # file: roles/presto_common/tasks/main.yml
 
+- name: install upstart
+  apt: pkg=upstart state=present
+  when:
+    - ansible_distribution_release == "wheezy"
+
 - name: create the /data/presto directory
   file: path=/data/presto state=directory
   tags: presto
@@ -14,7 +19,7 @@
   tags: presto
 
 - name: install Presto at /usr/lib/presto
-  shell: chdir=/tmp creates=/usr/lib/presto/lib/presto-server-0.60.jar curl http://central.maven.org/maven2/com/facebook/presto/presto-server/0.60/presto-server-0.60.tar.gz | tar xz && mv presto-server-0.60/* /usr/lib/presto
+  shell: creates=/usr/lib/presto/bin/launcher chdir=/tmp curl http://central.maven.org/maven2/com/facebook/presto/presto-server/0.65/presto-server-0.65.tar.gz | tar xz && mv presto-server-0.65/* /usr/lib/presto
   tags: presto
 
 - name: configure presto in /usr/lib/presto/etc
@@ -22,7 +27,9 @@
   with_items:
     - node.properties
     - jvm.config
-  tags: presto
+  tags:
+    - configuration
+    - presto
 
 - name: configure presto hive catalog in /usr/lib/presto/etc/catalog
   template: src={{ item }} dest=/usr/lib/presto/etc/catalog/{{ item }} owner=root group=root mode=0644
@@ -30,12 +37,16 @@
     - jmx.properties
     - hive.properties
     - tpch.properties
-  tags: presto
+  tags:
+    - configuration
+    - presto
 
 - name: install presto command line client
-  shell: chdir=/usr/bin curl -o presto http://central.maven.org/maven2/com/facebook/presto/presto-cli/0.60/presto-cli-0.60-executable.jar && chmod +x presto
+  shell: chdir=/usr/bin curl -o presto http://central.maven.org/maven2/com/facebook/presto/presto-cli/0.65/presto-cli-0.65-executable.jar && chmod +x presto
   tags: presto
 
 - name: install upstart config for presto
   template: src=upstart.conf dest=/etc/init/presto.conf owner=root group=root mode=0644
-  tags: presto
+  tags:
+    - configuration
+    - presto

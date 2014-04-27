@@ -1,6 +1,8 @@
 ---
 # file: roles/smokeping/tasks/main.yml
 
+#FIXME: sendmail dependency needs to be met
+
 - name: install smokeping via apt
   apt: pkg=smokeping
   tags: smokeping
@@ -15,18 +17,35 @@
   notify:
     - restart smokeping
 
+#FIXME: Depends on Apache2 2.4 (Debian Wheezy is Apache2 2.2)
+#########
+# Debian Wheezy (Apache2 2.2) specific
+#- name: link smokeping config in /etc/apache2/conf.d
+#  command: creates=/etc/apache2/conf.d/smokeping.conf chdir=/etc/apache2/conf.d ln -s ../../smokeping/apache2.conf smokeping.conf
+#  when:
+#    - ansible_distribution == "Debian"
+#    - ansible_distribution_release == "wheezy"
+#  tags: smokeping
+
+# Apache2 2.4
 - name: link to smokeping config in /etc/apache2/conf-available
-  shell: creates=/etc/apache2/conf-available/smokeping.conf chdir=/etc/apache2/conf-available ln -s ../../smokeping/apache2.conf smokeping.conf
-  when: ansible_distribution_version not in ["12.04", "12.10", "13.04"]
+  command: creates=/etc/apache2/conf-available/smokeping.conf chdir=/etc/apache2/conf-available ln -s ../../smokeping/apache2.conf smokeping.conf
+  when:
+    - ansible_distribution_version not in ["12.04", "12.10", "13.04"]
+#    - ansible_distribution_release != "wheezy"
   tags: smokeping
 
 - name: enable the smokeping apache2 configuration
-  shell: a2enconf smokeping
-  when: ansible_distribution_version not in ["12.04", "12.10", "13.04"]
+  command: a2enconf smokeping
+  when:
+    - ansible_distribution_version not in ["12.04", "12.10", "13.04"]
+#    - ansible_distribution_release != "wheezy"
   tags: smokeping
+#
+#####################
 
 - name: enable the cgid apache2 module
-  shell: a2enmod cgid
+  command: a2enmod cgid
   tags: smokeping
   notify:
     - reload apache config

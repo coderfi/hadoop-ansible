@@ -23,11 +23,13 @@
   with_items:
     - checkinstall
     - curl
+    - dstat
     - git
     - htop
     - liblzo2-dev
     - net-tools
     - ntp
+    - numactl
     - python-pycurl
     - software-properties-common
     - zip
@@ -49,6 +51,8 @@
 
 - name: create the hosts file for all machines
   template: backup=yes src=hosts dest=/etc/hosts
+  when: muck_up_hosts
+  tags: configuration
 
 - name: create landscape dir
   file: dest=/etc/landscape state=directory owner=root group=root mode=0644
@@ -68,6 +72,6 @@
     - restart ntp
   tags: ntp
 
-- name: make sure NTP is running and enabled
-  service: name=ntp state=running enabled=yes
+- name: make sure NTP is enabled and started
+  service: name=ntp enabled=yes state=started
   tags: ntp

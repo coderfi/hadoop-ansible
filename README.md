@@ -1,18 +1,18 @@
-Hadoop Ansible Playbook [![Build Status](https://travis-ci.org/analytically/hadoop-ansible.png)](https://travis-ci.org/analytically/hadoop-ansible) [![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/analytically/hadoop-ansible/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+Hadoop Ansible Playbook [![Build Status](https://travis-ci.org/analytically/hadoop-ansible.svg?branch=master)](https://travis-ci.org/analytically/hadoop-ansible)
 =======================
 
-[Ansible](http://www.ansibleworks.com/) playbook that installs a CDH 4.5 [Hadoop](http://hadoop.apache.org/)
+[Ansible](http://www.ansibleworks.com/) playbook that installs a CDH 4.6.0 [Hadoop](http://hadoop.apache.org/)
 cluster (running on Java 7, supported from [CDH 4.4](http://www.cloudera.com/content/cloudera-content/cloudera-docs/CDH4/latest/CDH4-Release-Notes/Whats_New_in_4-4.html)),
 with [HBase](http://hbase.apache.org/), Hive, [Presto](http://prestodb.io/) for analytics, and [Ganglia](http://ganglia.sourceforge.net/),
 [Smokeping](http://oss.oetiker.ch/smokeping/), [Fluentd](http://fluentd.org/), [Elasticsearch](http://www.elasticsearch.org/)
 and [Kibana](http://www.elasticsearch.org/overview/kibana/) for monitoring and centralized log indexing.
 
-Hire/Follow [@analytically](http://twitter.com/analytically). Browse the CI [build screenshots](http://hadoop-ansible.s3-website-us-east-1.amazonaws.com/#artifacts/).
+Follow [@analytically](http://twitter.com/analytically). Browse the CI [build screenshots](http://hadoop-ansible.s3-website-us-east-1.amazonaws.com/#artifacts/).
 
 ### Requirements
 
-  - [Ansible](http://www.ansibleworks.com/) 1.4 or later (`pip install ansible`)
-  - 6 + 1 Ubuntu 12.04 LTS, 13.04 or 13.10 hosts - see [ubuntu-netboot-tftp](https://github.com/analytically/ubuntu-netboot-tftp) if you need automated server installation
+  - [Ansible](http://www.ansibleworks.com/) 1.5 or later (`pip install ansible`)
+  - 6 + 1 Ubuntu 12.04 LTS/13.04/13.10 or Debian "wheezy" hosts - see [ubuntu-netboot-tftp](https://github.com/analytically/ubuntu-netboot-tftp) if you need automated server installation
   - [Mandrill](http://mandrill.com/) username and API key for sending email notifications
   - `ansibler` user in sudo group without sudo password prompt (see Bootstrapping section below)
 
@@ -59,6 +59,9 @@ Required:
 
 Optional:
 
+- Network interface: if you'd like to use a different IP address per host (eg. internal interface), change `site.yml` and
+  change `set_fact: ipv4_address=...` to determine the correct IP address to use per host. If this fact is not set,
+  `ansible_default_ipv4.address` will be used.
 - Email notification: `notify_email`, `postfix_domain`, `mandrill_username`, `mandrill_api_key`
 - [`roles/common`](roles/common/defaults/main.yml): `kernel_swappiness`(0), `nofile` limits, ntp servers and `rsyslog_polling_interval_secs`(10)
 - [`roles/2_aggregated_links`](roles/2_aggregated_links/defaults/main.yml): `bond_mode` (balance-alb) and `mtu` (9216)
@@ -123,8 +126,14 @@ After the installation, go here:
   - Ganglia at [monitor01/ganglia](http://monitor01/ganglia/)
   - Kibana at [monitor01/kibana/index.html#/dashboard/file/logstash.json](http://monitor01/kibana/index.html#/dashboard/file/logstash.json)
   - Smokeping at [monitor01/smokeping/smokeping.cgi](http://monitor01/smokeping/smokeping.cgi)
-  - hmaster01 at [hmaster01:50070](http://hmaster01:50070) - active namenode
-  - hmaster02 at [hmaster02:50070](http://hmaster01:50070) - standby namenode
+  - Hadoop Active Namenode at [hmaster01:50070](http://hmaster01:50070)
+  - Hadoop Standby Namenode at [hmaster02:50070](http://hmaster02:50070)
+  - Presto Coordinator at [hmaster02:8081](http://hmaster02:8081)
+  - Hadoop Job History at [hslave01:19888](http://hslave01:19888)
+  - Hadoop Node Manager at [hslave01:8042]](http://hslave01:8042)
+  - ElasticSearch at (monitor01:9200)[http://monitor01:9200/]
+  - Hive CLI at (hmaster02) - ssh hmaster02; hive
+  - Also see [cloudera.com](http://www.cloudera.com/content/cloudera-content/cloudera-docs/CM4Ent/latest/Cloudera-Manager-Installation-Guide/cmig_ports_cdh4.html) - CDH4 Ports
 
 ### Performance testing
 
@@ -142,7 +151,7 @@ Instructions on how to test the performance of your CDH4 cluster.
 
 ##### DFSIO
 
-  - `hadoop jar hadoop-mapreduce-client-jobclient-2.0.0-cdh4.5.0-tests.jar TestDFSIO -write`
+  - `hadoop jar hadoop-mapreduce-client-jobclient-2.0.0-cdh4.6.0-tests.jar TestDFSIO -write`
 
 ### Bootstrapping
 
