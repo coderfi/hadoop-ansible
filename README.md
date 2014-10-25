@@ -131,7 +131,8 @@ After the installation, go here:
   - Presto Coordinator at [hmaster02:8081](http://hmaster02:8081)
   - Hadoop Job History at [hslave01:19888](http://hslave01:19888)
   - Hadoop Node Manager at [hslave01:8042]](http://hslave01:8042)
-  - ElasticSearch at (monitor01:9200)[http://monitor01:9200/]
+  - ElasticSearch at (monitor01:9200)[http://monitor01:9200]
+  - Hadoop Journal Node at [hslave01:8480](http://hslave01:8480)
   - Hive CLI at (hmaster02) - ssh hmaster02; hive
   - Also see [cloudera.com](http://www.cloudera.com/content/cloudera-content/cloudera-docs/CM4Ent/latest/Cloudera-Manager-Installation-Guide/cmig_ports_cdh4.html) - CDH4 Ports
 
